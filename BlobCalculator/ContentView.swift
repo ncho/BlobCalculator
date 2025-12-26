@@ -11,7 +11,6 @@ import SwiftUI
 struct ContentView: View {
     @State private var equationString = "0"
     
-    // Vibrant palette
     let numberColors: [Color] = [.red, .orange, .blue, .green, .purple, .pink, .teal]
     
     private var sum: Int {
@@ -37,47 +36,47 @@ struct ContentView: View {
             Color.white.ignoresSafeArea()
             
             VStack(spacing: 0) {
-                // MARK: - Artistic Blob & Sum Area
+                // MARK: - Artistic Blob Area (Non-Scrolling)
                 ZStack {
-                    // Layer 1: The Blobs (Background)
                     GeometryReader { geo in
-                        VStack(alignment: .leading, spacing: 6) {
-                            Spacer(minLength: 0)
-                            let components = equationString.components(separatedBy: "+")
-                            ForEach(0..<components.count, id: \.self) { index in
-                                if let count = Int(components[index]), count > 0 {
-                                    BlobRow(count: count, color: numberColors[index % numberColors.count])
-                                }
-                            }
-                            Spacer(minLength: 0)
-                        }
-                        .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+                        let totalCount = equationString.components(separatedBy: "+").compactMap { Int($0) }.reduce(0, +)
+                        let size = calculateBlobSize(totalCount: totalCount, containerSize: geo.size)
+                        
+                        // Using a standard View here instead of ScrollView
+                        WrappingBlobGrid(equation: equationString, colors: numberColors, blobSize: size)
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                     }
                     
-                    // Layer 2: Large Condensed Sum (Foreground)
+                    // MARK: - Sum Overlay
                     if equationString.contains("+") {
                         Text("\(sum)")
-                            // Using SF Pro Condensed / Compressed style
-                            .font(.system(size: 160, weight: .black, design: .rounded))
-                            .minimumScaleFactor(0.2)
-                            .kerning(-5) // Tighten characters for that condensed look
-                            .foregroundColor(.black.opacity(0.15)) // Subtle overlay effect
+                            // Font changed to match input (Monospaced), but larger
+                            .font(.system(size: 140, weight: .medium, design: .monospaced))
+                            .minimumScaleFactor(0.1)
+                            .foregroundColor(.black.opacity(0.5))
                             .allowsHitTesting(false)
                     }
                 }
                 .padding(.top)
 
-                // MARK: - Equation Display
-                coloredEquationText()
-                    .font(.system(size: 40, weight: .medium, design: .monospaced))
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding()
-                
-                // MARK: - Custom Keypad
-                KeypadView { key in
-                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
-                        handleKeyPress(key)
+                // MARK: - Horizontal Input String (1 Line Only)
+                ScrollView(.horizontal, showsIndicators: false) {
+                    ScrollViewReader { proxy in
+                        coloredEquationText()
+                            .font(.system(size: 44, weight: .medium, design: .monospaced))
+                            .id("end")
+                            .padding(.horizontal)
+                            .onChange(of: equationString) { _ in
+                                withAnimation { proxy.scrollTo("end", anchor: .trailing) }
+                            }
                     }
+                }
+                .frame(height: 60)
+                .padding(.vertical, 10)
+                
+                // MARK: - Keypad
+                KeypadView { key in
+                    handleKeyPress(key)
                 }
                 .padding(.horizontal)
                 .padding(.bottom)
@@ -85,51 +84,65 @@ struct ContentView: View {
         }
     }
     
+    private func calculateBlobSize(totalCount: Int, containerSize: CGSize) -> CGFloat {
+        if totalCount <= 0 { return 20 }
+        
+        let area = containerSize.width * containerSize.height
+        // We calculate size so that (count * size^2) is slightly less than total area
+        // to account for spacing and padding.
+        let idealSize = sqrt(area / CGFloat(totalCount))
+        
+        // Clamp the size: Max 24px, Min 2px
+        return max(2, min(24, idealSize * 0.7))
+    }
+    
     private func handleKeyPress(_ key: String) {
-        switch key {
-        case "C":
-            equationString = "0"
-        case "+":
-            if !equationString.hasSuffix("+") && equationString != "0" {
-                equationString += "+"
-            }
-        case "0":
-            if equationString != "0" {
-                equationString += key
-            }
-        default:
-            if equationString == "0" {
-                equationString = key
-            } else {
-                equationString += key
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+            switch key {
+            case "C":
+                equationString = "0"
+            case "+":
+                if !equationString.hasSuffix("+") {
+                    equationString += "+"
+                }
+            case "0":
+                if equationString != "0" {
+                    equationString += key
+                }
+            default:
+                if equationString == "0" {
+                    equationString = key
+                } else {
+                    equationString += key
+                }
             }
         }
     }
 }
 
-// MARK: - Blob Row Component
-
-struct BlobRow: View {
-    let count: Int
-    let color: Color
+// MARK: - Updated Blob Grid (No LazyVGrid to prevent scrolling issues)
+struct WrappingBlobGrid: View {
+    let equation: String
+    let colors: [Color]
+    let blobSize: CGFloat
     
     var body: some View {
-        HStack(spacing: 2) {
-            // We use the count itself as the ID for the ForEach to help SwiftUI
-            // animate the change in number of blobs
-            ForEach(0..<min(count, 500), id: \.self) { _ in
+        let components = equation.components(separatedBy: "+")
+        let allBlobs = components.enumerated().flatMap { (index, value) -> [Color] in
+            let count = Int(value) ?? 0
+            return Array(repeating: colors[index % colors.count], count: count)
+        }
+        
+        // LazyVGrid inside a non-scrolling container will just fit what it can.
+        // The calculateBlobSize logic ensures they all fit.
+        LazyVGrid(columns: [GridItem(.adaptive(minimum: blobSize), spacing: 1)], spacing: 1) {
+            ForEach(0..<allBlobs.count, id: \.self) { i in
                 Circle()
-                    .fill(color)
-                    .frame(minWidth: 1, maxWidth: 12)
-                    .aspectRatio(1, contentMode: .fit)
-                    .transition(.asymmetric(
-                        insertion: .scale.combined(with: .opacity).combined(with: .move(edge: .trailing)),
-                        removal: .opacity
-                    ))
+                    .fill(allBlobs[i])
+                    .frame(width: blobSize, height: blobSize)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .leading) // Keeps blobs left-aligned
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 10)
     }
 }
 
