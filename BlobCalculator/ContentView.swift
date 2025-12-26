@@ -9,24 +9,32 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var firstNumber = 0
-    @State private var secondNumber = 0
-    @State private var inputBuffer = ""
-    @State private var enteringFirst = true
+    @State private var firstText = ""
+    @State private var secondText = ""
     
-    var sum: Int {
+    private var firstNumber: Int {
+        Int(firstText) ?? 0
+    }
+    
+    private var secondNumber: Int {
+        Int(secondText) ?? 0
+    }
+    
+    private var sum: Int {
         firstNumber + secondNumber
     }
     
     var body: some View {
-        VStack(spacing: 16) {
+        VStack(spacing: 24) {
             
+            // MARK: - Blob Visualization
             BlobView(
                 first: firstNumber,
                 second: secondNumber
             )
-            .frame(height: 200)
+            .frame(height: 220)
             
+            // MARK: - Equation Display
             VStack(spacing: 8) {
                 Text("\(firstNumber) + \(secondNumber)")
                     .font(.title2)
@@ -38,50 +46,38 @@ struct ContentView: View {
             
             Spacer()
             
-            VStack(spacing: 12) {
-                Text(inputBuffer.isEmpty ? "0" : inputBuffer)
-                    .font(.largeTitle)
-                    .frame(maxWidth: .infinity, alignment: .trailing)
-                    .padding(.horizontal)
+            // MARK: - Numeric Input Area
+            VStack(spacing: 16) {
                 
-                KeypadView { key in
-                    handleKeyPress(key)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("First number")
+                        .font(.headline)
+                    
+                    TextField("0", text: $firstText)
+                        .keyboardType(.numberPad)
+                        .font(.largeTitle)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("Number to add")
+                        .font(.headline)
+                    
+                    TextField("0", text: $secondText)
+                        .keyboardType(.numberPad)
+                        .font(.largeTitle)
+                        .padding()
+                        .background(Color(.systemGray6))
+                        .cornerRadius(12)
                 }
             }
             .padding()
-            .background(Color(.systemGray6))
         }
         .padding()
-    }
-    
-    private func handleKeyPress(_ key: String) {
-        switch key {
-        case "C":
-            firstNumber = 0
-            secondNumber = 0
-            inputBuffer = ""
-            enteringFirst = true
-            
-        case "+":
-            commitBuffer()
-            enteringFirst = false
-            
-        case "=":
-            commitBuffer()
-            
-        default:
-            inputBuffer.append(key)
-        }
-    }
-    
-    private func commitBuffer() {
-        let value = Int(inputBuffer) ?? 0
-        if enteringFirst {
-            firstNumber = value
-        } else {
-            secondNumber = value
-        }
-        inputBuffer = ""
+        .background(Color.white)
+        .ignoresSafeArea(.keyboard, edges: .bottom)
     }
 }
 
@@ -110,48 +106,14 @@ struct BlobView: View {
     }
     
     private func blobGroup(count: Int, color: Color, centerX: CGFloat) -> some View {
-        ForEach(0..<min(count, 20), id: \.self) { _ in
+        ForEach(0..<min(count, 20), id: \.self) { index in
             Circle()
                 .fill(color)
-                .frame(width: 20, height: 20)
+                .frame(width: 22, height: 22)
                 .position(
-                    x: centerX + CGFloat.random(in: -40...40),
-                    y: CGFloat.random(in: 40...160)
+                    x: centerX + CGFloat((index % 5) * 24 - 48),
+                    y: CGFloat(60 + (index / 5) * 24)
                 )
-        }
-    }
-}
-
-// MARK: - Keypad View
-
-struct KeypadView: View {
-    let onKeyPress: (String) -> Void
-    
-    let keys = [
-        ["1", "2", "3"],
-        ["4", "5", "6"],
-        ["7", "8", "9"],
-        ["C", "0", "+"],
-        ["="]
-    ]
-    
-    var body: some View {
-        VStack(spacing: 10) {
-            ForEach(keys, id: \.self) { row in
-                HStack(spacing: 10) {
-                    ForEach(row, id: \.self) { key in
-                        Button {
-                            onKeyPress(key)
-                        } label: {
-                            Text(key)
-                                .font(.title)
-                                .frame(maxWidth: .infinity, minHeight: 50)
-                                .background(Color.white)
-                                .cornerRadius(10)
-                        }
-                    }
-                }
-            }
         }
     }
 }
