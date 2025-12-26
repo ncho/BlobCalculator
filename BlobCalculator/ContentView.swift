@@ -3,56 +3,101 @@
 //  BlobCalculator
 //
 //  Created by Nathan Cho on 12/26/25.
-//  With ChatGPT Free and Claude Free
-// 
+//  With ChatGPT Free and Claude Free and Gemini
+//
 
 import SwiftUI
 
 struct ContentView: View {
     @State private var equationString = "0"
     
-    var body: some View {
-        VStack(spacing: 20) {
-            
-            // MARK: - Blob Visualization
-            BlobView(equationString: equationString)
-                .frame(height: 220)
-            
-            Spacer()
-            
-            // MARK: - Input Display
-            Text(equationString)
-                .font(.system(size: 48, weight: .medium, design: .monospaced))
-                .frame(maxWidth: .infinity)
-                .padding(.horizontal)
-            
-            // MARK: - Custom Keypad
-            KeypadView { key in
-                handleKeyPress(key)
+    // Vibrant palette
+    let numberColors: [Color] = [.red, .orange, .blue, .green, .purple, .pink, .teal]
+    
+    private var sum: Int {
+        let components = equationString.components(separatedBy: "+")
+        return components.compactMap { Int($0) }.reduce(0, +)
+    }
+
+    private func coloredEquationText() -> Text {
+        var result = Text("")
+        let components = equationString.components(separatedBy: "+")
+        for (index, number) in components.enumerated() {
+            let color = numberColors[index % numberColors.count]
+            result = result + Text(number).foregroundColor(color)
+            if index < components.count - 1 {
+                result = result + Text("+").foregroundColor(.black)
             }
-            .padding()
         }
-        .padding()
+        return result
     }
     
-    // MARK: - Input Handling
+    var body: some View {
+        ZStack {
+            Color.white.ignoresSafeArea()
+            
+            VStack(spacing: 0) {
+                // MARK: - Artistic Blob & Sum Area
+                ZStack {
+                    // Layer 1: The Blobs (Background)
+                    GeometryReader { geo in
+                        VStack(alignment: .leading, spacing: 6) {
+                            Spacer(minLength: 0)
+                            let components = equationString.components(separatedBy: "+")
+                            ForEach(0..<components.count, id: \.self) { index in
+                                if let count = Int(components[index]), count > 0 {
+                                    BlobRow(count: count, color: numberColors[index % numberColors.count])
+                                }
+                            }
+                            Spacer(minLength: 0)
+                        }
+                        .frame(width: geo.size.width, height: geo.size.height, alignment: .leading)
+                    }
+                    
+                    // Layer 2: Large Condensed Sum (Foreground)
+                    if equationString.contains("+") {
+                        Text("\(sum)")
+                            // Using SF Pro Condensed / Compressed style
+                            .font(.system(size: 160, weight: .black, design: .rounded))
+                            .minimumScaleFactor(0.2)
+                            .kerning(-5) // Tighten characters for that condensed look
+                            .foregroundColor(.black.opacity(0.15)) // Subtle overlay effect
+                            .allowsHitTesting(false)
+                    }
+                }
+                .padding(.top)
+
+                // MARK: - Equation Display
+                coloredEquationText()
+                    .font(.system(size: 40, weight: .medium, design: .monospaced))
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding()
+                
+                // MARK: - Custom Keypad
+                KeypadView { key in
+                    withAnimation(.spring(response: 0.4, dampingFraction: 0.7)) {
+                        handleKeyPress(key)
+                    }
+                }
+                .padding(.horizontal)
+                .padding(.bottom)
+            }
+        }
+    }
     
     private func handleKeyPress(_ key: String) {
         switch key {
         case "C":
             equationString = "0"
-            
         case "+":
-            equationString += "+"
-            
+            if !equationString.hasSuffix("+") && equationString != "0" {
+                equationString += "+"
+            }
         case "0":
-            // Only add 0 if string is not just "0"
             if equationString != "0" {
                 equationString += key
             }
-            
         default:
-            // It's a number - replace initial 0
             if equationString == "0" {
                 equationString = key
             } else {
@@ -62,71 +107,29 @@ struct ContentView: View {
     }
 }
 
-// MARK: - Blob View
+// MARK: - Blob Row Component
 
-struct BlobView: View {
-    let equationString: String
-    
-    // Parse the equation to get first and second numbers
-    private var numbers: (first: Int, second: Int) {
-        let components = equationString.components(separatedBy: "+")
-        let first = Int(components.first ?? "") ?? 0
-        let second = components.count > 1 ? (Int(components[1]) ?? 0) : 0
-        return (first, second)
-    }
+struct BlobRow: View {
+    let count: Int
+    let color: Color
     
     var body: some View {
-        GeometryReader { geo in
-            ZStack {
-                blobGroup(
-                    count: numbers.first,
-                    color: .blue,
-                    centerX: geo.size.width * 0.35
-                )
-                
-                if numbers.second > 0 {
-                    blobGroup(
-                        count: numbers.second,
-                        color: .orange,
-                        centerX: geo.size.width * 0.65
-                    )
-                }
-            }
-        }
-    }
-    
-    private func blobGroup(count: Int, color: Color, centerX: CGFloat) -> some View {
-        GeometryReader { geo in
-            let availableWidth = geo.size.width * 0.3  // Each group gets 30% of width
-            let availableHeight = geo.size.height * 0.8
-            
-            // Calculate blob size based on count
-            // More blobs = smaller size, fewer blobs = larger size
-            let blobSize: CGFloat = {
-                if count == 0 { return 0 }
-                if count == 1 { return min(availableWidth, availableHeight) * 0.8 }
-                
-                // Calculate optimal size to fit all blobs
-                let area = availableWidth * availableHeight
-                let areaPerBlob = area / CGFloat(count)
-                let baseSize = sqrt(areaPerBlob) * 0.9  // 0.9 for spacing
-                
-                return max(8, min(baseSize, 60))  // Min 8px, max 60px
-            }()
-            
-            // Calculate grid dimensions
-            let cols = max(1, Int(availableWidth / (blobSize + 4)))
-            
-            ForEach(0..<count, id: \.self) { i in
+        HStack(spacing: 2) {
+            // We use the count itself as the ID for the ForEach to help SwiftUI
+            // animate the change in number of blobs
+            ForEach(0..<min(count, 500), id: \.self) { _ in
                 Circle()
                     .fill(color)
-                    .frame(width: blobSize, height: blobSize)
-                    .position(
-                        x: centerX + CGFloat((i % cols)) * (blobSize + 4) - (CGFloat(cols - 1) * (blobSize + 4) / 2),
-                        y: CGFloat(i / cols) * (blobSize + 4) + blobSize / 2 + 20
-                    )
+                    .frame(minWidth: 1, maxWidth: 12)
+                    .aspectRatio(1, contentMode: .fit)
+                    .transition(.asymmetric(
+                        insertion: .scale.combined(with: .opacity).combined(with: .move(edge: .trailing)),
+                        removal: .opacity
+                    ))
             }
         }
+        .frame(maxWidth: .infinity, alignment: .leading) // Keeps blobs left-aligned
+        .padding(.horizontal, 20)
     }
 }
 
@@ -152,8 +155,9 @@ struct KeypadView: View {
                         } label: {
                             Text(key)
                                 .font(.title)
+                                .foregroundColor(.black)
                                 .frame(maxWidth: .infinity, minHeight: 56)
-                                .background(Color(.systemGray6))
+                                .background(Color(.systemGray5))
                                 .cornerRadius(14)
                         }
                     }
